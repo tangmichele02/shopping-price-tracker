@@ -130,14 +130,17 @@ type ShopifyProduct = {
 // Shopify storefronts serve product data at /products/<handle>.js, prices in cents.
 async function tryShopify(
   url: URL,
+  // Where the Shopify product lives, when it is not the page's own origin and handle.
+  source?: { origin: string; handle: string },
 ): Promise<Omit<Extract<ScrapeResult, { ok: true }>, "promoText" | "url" | "store"> | null> {
-  const handle = url.pathname.match(/\/products\/([^/]+)/)?.[1];
+  const origin = source?.origin ?? url.origin;
+  const handle = source?.handle ?? url.pathname.match(/\/products\/([^/]+)/)?.[1];
   if (!handle) return null;
 
   let product: ShopifyProduct;
   try {
     const { status, body } = await fetchText(
-      `${url.origin}/products/${handle}.js`,
+      `${origin}/products/${handle}.js`,
       "application/json",
     );
     if (status !== 200) return null;
@@ -172,6 +175,36 @@ async function tryShopify(
       ? variant.available
       : product.variants.some((v) => v.available),
   };
+}
+
+type HeadlessShopifyProduct = {
+  productReferenceV2?: { store?: { slug?: { current?: string }; shop?: { domain?: string } } };
+};
+
+// Kotn runs a custom storefront over Shopify: each colour is its own Shopify
+// product, listed in the page's __NEXT_DATA__ with its handle and shop domain.
+function findHeadlessShopifySource(
+  html: string,
+  url: URL,
+): { origin: string; handle: string } | null {
+  const json = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+  if (!json) return null;
+  let products: HeadlessShopifyProduct[];
+  try {
+    products = JSON.parse(json)?.props?.pageProps?.product?.shopifyProducts;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(products)) return null;
+
+  const stores = products
+    .map((product) => product.productReferenceV2?.store)
+    .filter((store) => store?.slug?.current && store.shop?.domain?.endsWith(".myshopify.com"));
+  const colour = url.searchParams.get("colour") ?? url.searchParams.get("color");
+  const chosen =
+    (colour && stores.find((store) => store!.slug!.current!.endsWith(`-${colour}`))) || stores[0];
+  if (!chosen) return null;
+  return { origin: `https://${chosen.shop!.domain}`, handle: chosen.slug!.current! };
 }
 
 // Gap Inc. sites (Gap, Old Navy, Banana Republic, Athleta) embed per-size data
@@ -310,7 +343,8 @@ export async function scrapeProduct(rawUrl: string): Promise<ScrapeResult> {
 
     const promoText = extractPromoText(html);
 
-    const shopify = await tryShopify(url);
+    const headlessSource = findHeadlessShopifySource(html, url);
+    const shopify = await tryShopify(url, headlessSource ?? undefined);
     if (shopify) {
       return {
         ...shopify,
