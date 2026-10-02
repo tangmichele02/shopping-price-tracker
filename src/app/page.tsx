@@ -1,69 +1,91 @@
-import Image from "next/image";
+import { desc, eq, sql } from "drizzle-orm";
+import { getDb } from "@/db";
+import { items, priceChecks } from "@/db/schema";
+import { formatPrice } from "@/lib/format";
+import { AddItem } from "./add-item";
+import { DeleteButton } from "./delete-button";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+async function loadItems() {
+  const db = getDb();
+  // Latest check per item.
+  const latest = db
+    .selectDistinctOn([priceChecks.itemId])
+    .from(priceChecks)
+    .orderBy(priceChecks.itemId, desc(priceChecks.checkedAt))
+    .as("latest");
+  return db
+    .select({
+      item: items,
+      check: {
+        ok: latest.ok,
+        price: latest.price,
+        regularPrice: latest.regularPrice,
+        inStock: latest.inStock,
+        failureDetail: latest.failureDetail,
+      },
+    })
+    .from(items)
+    .leftJoin(latest, eq(latest.itemId, items.id))
+    .orderBy(sql`${items.createdAt} desc`);
+}
+
+export default async function Home() {
+  const rows = await loadItems();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-6">
+      <h1 className="text-xl font-semibold">Price tracker</h1>
+      <AddItem />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">Tracking {rows.length} {rows.length === 1 ? "item" : "items"}</h2>
+        {rows.length === 0 && (
+          <p className="text-sm text-neutral-500">Nothing yet. Paste a product URL above.</p>
+        )}
+        {rows.map(({ item, check }) => (
+          <article
+            key={item.id}
+            className="flex gap-4 rounded-md border border-neutral-300 p-4 dark:border-neutral-700"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            {item.image && (
+              // eslint-disable-next-line @next/next/no-img-element -- images come from arbitrary store domains
+              <img src={item.image} alt="" className="h-20 w-20 rounded object-cover" />
+            )}
+            <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+              <a href={item.url} target="_blank" rel="noreferrer" className="truncate font-medium hover:underline">
+                {item.title ?? item.url}
+              </a>
+              <p className="text-neutral-600 dark:text-neutral-400">
+                {item.store}
+                {item.variant ? ` · ${item.variant}` : ""}
+                {check?.inStock === false ? " · out of stock" : ""}
+              </p>
+              {check?.ok && check.price !== null ? (
+                <p className="text-base font-semibold">
+                  {formatPrice(check.price, item.currency)}
+                  {check.regularPrice !== null && (
+                    <span className="ml-2 text-sm font-normal text-neutral-500 line-through">
+                      {formatPrice(check.regularPrice, item.currency)}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="font-medium text-red-700 dark:text-red-400">
+                  Couldn&apos;t check: {check?.failureDetail ?? "no checks recorded"}
+                </p>
+              )}
+              <p className="text-neutral-500">
+                {item.targetPrice !== null
+                  ? `Target ${formatPrice(item.targetPrice, item.currency)}`
+                  : `Added at ${formatPrice(item.baselinePrice, item.currency)}`}
+              </p>
+              <DeleteButton id={item.id} />
+            </div>
+          </article>
+        ))}
+      </section>
+    </main>
   );
 }

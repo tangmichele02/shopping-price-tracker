@@ -1,4 +1,4 @@
-export type ScrapeMethod = "shopify" | "json-ld" | "meta";
+export type ScrapeMethod = "shopify" | "gap" | "json-ld" | "meta";
 
 export type ScrapeFailureReason =
   | "invalid_url"
@@ -174,6 +174,39 @@ async function tryShopify(
   };
 }
 
+// Gap Inc. sites (Gap, Old Navy, Banana Republic, Athleta) embed per-size data
+// for each colour: stock status, current price and regular price.
+const GAP_SKU_PATTERN =
+  /"online_legacy_customer_choice_number":"(\d+)"[\s\S]{0,700}?"inventory_status":\{"status":"(\w+)"[\s\S]{0,300}?"price":\{"currency":"(\w+)","effective_price":([\d.]+),"price_type":"\w+","price_details":\{"regular_price":([\d.]+)/g;
+
+function tryGap(
+  html: string,
+  url: URL,
+): { price: number; regularPrice: number | null; currency: string; inStock: boolean } | null {
+  const skus = [...html.replace(/\\"/g, '"').matchAll(GAP_SKU_PATTERN)].map((m) => ({
+    colour: m[1],
+    inStock: m[2] !== "OUT_OF_STOCK",
+    currency: m[3],
+    price: Number(m[4]),
+    regularPrice: Number(m[5]),
+  }));
+  if (skus.length === 0) return null;
+
+  // The pid in the URL identifies the colour; the page also lists other colours.
+  const pid = url.searchParams.get("pid");
+  const forColour = skus.filter((sku) => sku.colour === pid);
+  const chosen = forColour.length > 0 ? forColour : skus;
+
+  const price = Math.min(...chosen.map((sku) => sku.price));
+  const regularPrice = Math.max(...chosen.map((sku) => sku.regularPrice));
+  return {
+    price,
+    regularPrice: regularPrice > price ? regularPrice : null,
+    currency: chosen[0].currency,
+    inStock: chosen.some((sku) => sku.inStock),
+  };
+}
+
 type JsonLdNode = Record<string, unknown>;
 
 function collectProducts(node: unknown, out: JsonLdNode[]): void {
@@ -290,6 +323,22 @@ export async function scrapeProduct(rawUrl: string): Promise<ScrapeResult> {
     }
 
     const jsonLd = tryJsonLd(html);
+
+    const gap = tryGap(html, url);
+    if (gap) {
+      return {
+        ok: true,
+        method: "gap",
+        url: url.href,
+        store,
+        title: jsonLd?.title ?? pageTitle(html),
+        image: jsonLd?.image ?? metaContent(html, "og:image"),
+        variant: null,
+        ...gap,
+        promoText,
+      };
+    }
+
     if (jsonLd) {
       return {
         ok: true,
