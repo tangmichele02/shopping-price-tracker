@@ -1,7 +1,7 @@
 import type { Item, PriceCheck } from "@/db/schema";
 
-// With no target set, alert at 10% below the price when the item was added.
-const DEFAULT_DROP = 0.1;
+// With no target set, alert at 20% below the price when the item was added.
+const DEFAULT_DROP = 0.2;
 export const FAILURES_BEFORE_ALERT = 2;
 
 export function alertThreshold(item: Pick<Item, "targetPrice" | "baselinePrice">): number {
