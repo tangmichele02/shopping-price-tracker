@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
 import { items, priceChecks } from "@/db/schema";
+import { alertThreshold } from "@/lib/alerts";
 import { formatPrice } from "@/lib/format";
 import { DeleteButton } from "@/app/delete-button";
 import { CheckNowButton } from "./check-now-button";
@@ -84,14 +85,12 @@ export default async function ItemPage({ params }: PageProps<"/items/[id]">) {
           </dd>
         </div>
         <div>
-          <dt className="text-neutral-500">When added</dt>
+          <dt className="text-neutral-500">Regular price</dt>
           <dd className="text-lg font-semibold">{formatPrice(item.baselinePrice, item.currency)}</dd>
         </div>
         <div>
-          <dt className="text-neutral-500">Target</dt>
-          <dd className="text-lg font-semibold">
-            {item.targetPrice !== null ? formatPrice(item.targetPrice, item.currency) : "—"}
-          </dd>
+          <dt className="text-neutral-500">{item.targetPrice !== null ? "Target" : "Alert at"}</dt>
+          <dd className="text-lg font-semibold">{formatPrice(alertThreshold(item), item.currency)}</dd>
         </div>
       </dl>
 

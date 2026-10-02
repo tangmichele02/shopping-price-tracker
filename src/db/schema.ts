@@ -18,7 +18,8 @@ export const items = pgTable("items", {
   image: text("image"),
   variant: text("variant"),
   currency: text("currency"),
-  // Price at the time the item was added; the default alert threshold is relative to this.
+  // Regular price when the item was added (the store's "was" price if it was on sale,
+  // otherwise the price itself); the default alert threshold is relative to this.
   baselinePrice: doublePrecision("baseline_price").notNull(),
   targetPrice: doublePrecision("target_price"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -1,6 +1,6 @@
 import type { Item, PriceCheck } from "@/db/schema";
 
-// With no target set, alert at 20% below the price when the item was added.
+// With no target set, alert at 20% below the regular price.
 const DEFAULT_DROP = 0.2;
 export const FAILURES_BEFORE_ALERT = 2;
 

@@ -117,7 +117,7 @@ export default async function Home() {
               <p className="text-neutral-500">
                 {item.targetPrice !== null
                   ? `Target ${formatPrice(item.targetPrice, item.currency)}`
-                  : `Added at ${formatPrice(item.baselinePrice, item.currency)}, alert at ${formatPrice(alertThreshold(item), item.currency)}`}
+                  : `Regular price ${formatPrice(item.baselinePrice, item.currency)}, alert at ${formatPrice(alertThreshold(item), item.currency)}`}
               </p>
               <DeleteButton id={item.id} />
             </div>

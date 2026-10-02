@@ -48,7 +48,7 @@ export async function addItem(
       image: scrape.image,
       variant: scrape.variant,
       currency: scrape.currency,
-      baselinePrice: scrape.price,
+      baselinePrice: scrape.regularPrice ?? scrape.price,
       targetPrice,
     })
     .onConflictDoNothing({ target: items.url })
