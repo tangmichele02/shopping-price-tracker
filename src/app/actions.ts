@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { items, priceChecks } from "@/db/schema";
 import { SESSION_COOKIE, isValidSession } from "@/lib/auth";
+import { checkItem } from "@/lib/check";
 import { scrapeProduct, type ScrapeResult } from "@/lib/scrape";
 
 async function requireSession() {
@@ -74,4 +75,16 @@ export async function deleteItem(id: number): Promise<void> {
   await requireSession();
   await getDb().delete(items).where(eq(items.id, id));
   revalidatePath("/");
+}
+
+export async function checkNow(id: number): Promise<void> {
+  await requireSession();
+  const [item] = await getDb()
+    .select({ id: items.id, url: items.url })
+    .from(items)
+    .where(eq(items.id, id));
+  if (!item) return;
+  await checkItem(item);
+  revalidatePath("/");
+  revalidatePath(`/items/${id}`);
 }

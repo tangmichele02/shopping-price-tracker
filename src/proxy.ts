@@ -11,6 +11,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except the login page, static assets, and /api/probe (which has its own key).
-  matcher: ["/((?!login|api/probe|_next/static|_next/image|favicon.ico).*)"],
+  // Everything except the login page, static assets, and the API routes that check their own secret.
+  matcher: ["/((?!login|api/probe|api/cron|_next/static|_next/image|favicon.ico).*)"],
 };

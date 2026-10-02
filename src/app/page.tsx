@@ -1,4 +1,5 @@
 import { desc, eq, sql } from "drizzle-orm";
+import Link from "next/link";
 import { getDb } from "@/db";
 import { items, priceChecks } from "@/db/schema";
 import { formatPrice } from "@/lib/format";
@@ -54,9 +55,9 @@ export default async function Home() {
               <img src={item.image} alt="" className="h-20 w-20 rounded object-cover" />
             )}
             <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-              <a href={item.url} target="_blank" rel="noreferrer" className="truncate font-medium hover:underline">
+              <Link href={`/items/${item.id}`} className="truncate font-medium hover:underline">
                 {item.title ?? item.url}
-              </a>
+              </Link>
               <p className="text-neutral-600 dark:text-neutral-400">
                 {item.store}
                 {item.variant ? ` · ${item.variant}` : ""}
