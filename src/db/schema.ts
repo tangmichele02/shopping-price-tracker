@@ -44,5 +44,22 @@ export const priceChecks = pgTable(
   (table) => [index("price_checks_item_checked_idx").on(table.itemId, table.checkedAt)],
 );
 
+// One row per push notification sent, so the same event is never announced twice.
+export const alerts = pgTable(
+  "alerts",
+  {
+    id: serial("id").primaryKey(),
+    itemId: integer("item_id").references(() => items.id, { onDelete: "cascade" }),
+    store: text("store").notNull(),
+    kind: text("kind").$type<"price_drop" | "promo" | "failure">().notNull(),
+    // For promos: the normalised promo text, used to avoid repeating it.
+    dedupeKey: text("dedupe_key"),
+    message: text("message").notNull(),
+    delivered: boolean("delivered").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("alerts_store_kind_idx").on(table.store, table.kind, table.sentAt)],
+);
+
 export type Item = typeof items.$inferSelect;
 export type PriceCheck = typeof priceChecks.$inferSelect;
